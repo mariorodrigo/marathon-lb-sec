@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?><testsuites>
+<testsuite failures="0" name="com.stratio.marathonlbsec.testsAT.IT_addMarathonLBDefault.Adding marathon-lb Default" skipped="0" tests="1" time="229.467914675" timestamp="Wed Mar 22 11:05:21 CET 2017">
+<testcase classname="com.stratio.marathonlbsec.testsAT.IT_addMarathonLBDefault" name="Add Default marathon-lb" time="229.467914675">
+<system-out><![CDATA[
+Given I authenticate to DCOS cluster '10.200.0.46' with email 'admin', user 'root' and password 'stratio' using pem file 'none'.............passed
+And I securely send requests to '10.200.0.46:443'...........................................................................................passed
+When I open a ssh connection to '10.200.0.46' with user 'root' and password 'stratio'.......................................................passed
+And I run 'cat /tmp/vault_token | sed "s/\"//g"' in the ssh connection and save the value in environment variable 'token'...................passed
+When I send a 'POST' request to '/marathon/v2/apps' based on 'schemas/marathon-lb-Default.json' as 'json' with:
+           | $.env.VAULT_HOST | UPDATE | gosec2.node.default-cluster.labs.stratio.com | 
+           | $.env.VAULT_PORT | UPDATE | 8200 | 
+           | $.env.VAULT_TOKEN | UPDATE | 4f83a555-90fc-aa4c-b823-a7ca9d852beb | ...........................................................passed
+Then the service response status must be '201'..............................................................................................passed
+Given I open a ssh connection to 'dcos-cli.demo.stratio.com' with user 'root' and password 'stratio'........................................passed
+When in less than '200' seconds, checking each '20' seconds, the command output 'dcos task | grep marathon-lb-sec2 | grep R | wc -l' contains '1'passed
+And I wait '200' seconds....................................................................................................................passed
+And I send a 'GET' request to '/mesos/frameworks'...........................................................................................passed
+Then the service response status must be '200'..............................................................................................passed
+And I save element '$' in environment variable 'coordinator'................................................................................passed
+And 'coordinator' matches the following cases:
+           | $.frameworks[?(@.name == "marathon")].tasks[?(@.name == "marathon-lb-sec2")].statuses[*].state | contains | TASK_RUNNING | ....passed
+
+]]></system-out>
+</testcase>
+</testsuite>
+</testsuites>
