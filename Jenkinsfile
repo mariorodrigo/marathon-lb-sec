@@ -1,4 +1,4 @@
-@Library('libpipelines@master') _
+@Library('libpipelines@feature/installClosure') _
 
 hose {
     EMAIL = 'qa'
@@ -8,9 +8,9 @@ hose {
     REPOSITORY = 'github.com/marathon-lb-sec'    
     PKGMODULESNAMES = ['marathon-lb-sec']
 
-    ATTIMEOUT = 20
+    INSTALLTIMEOUT = 20
 
-    ATSERVICES = [
+    INSTALLSERVICES = [
             ['DCOSCLI':   ['image': 'stratio/dcos-cli:0.4.15',
 			   'volumes': ['stratio/paasintegrationpem:0.1.0'],
                            'env':     ['DCOS_IP=10.200.0.205',
@@ -24,7 +24,7 @@ hose {
                            'sleep':  10]]
         ]
 
-    ATPARAMETERS = """
+    INSTALLPARAMETERS = """
                     | -DDCOS_CLI_HOST=%%DCOSCLI#0
                     | -DDCOS_CLI_USER=root
                     | -DDCOS_CLI_PASSWORD=stratio
@@ -41,7 +41,7 @@ hose {
         doDocker(config)
     }
 
-    AT = { config ->
+    INSTALL = { config ->
         doAT(conf: config, groups: ['marathonlbdefault','marathonlbxd'])
     }
 }
