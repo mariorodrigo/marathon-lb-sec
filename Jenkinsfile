@@ -1,4 +1,4 @@
-@Library('libpipelines@feature/installClosure') _
+@Library('libpipelines@master') _
 
 hose {
     EMAIL = 'qa'
