@@ -18,7 +18,7 @@ hose {
 				      'SSH=true',
                                       'TOKEN_AUTHENTICATION=true',
                                       'DCOS_USER=admin@demo.stratio.com',
-                                      'DCOS_PASSWORD=stratiotest',
+                                      'DCOS_PASSWORD=1234',
                                       'BOOTSTRAP_USER=operador',
                                       'PEM_FILE_PATH=/paascerts/PaasIntegration.pem'],
                            'sleep':  10]]
@@ -33,7 +33,7 @@ hose {
                     | -DREMOTE_USER=root
                     | -DREMOTE_PASSWORD=stratio
                     | -DPEM_FILE=none
-                    | -DVAULT_HOST=gosec2.node.default-cluster.labs.stratio.com
+                    | -DVAULT_HOST=gosec2.node.paas.labs.stratio.com
                     | -DVAULT_PORT=8200
                     | """.stripMargin().stripIndent()
 
