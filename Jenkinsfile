@@ -5,7 +5,7 @@ hose {
     DEVTIMEOUT = 20
     RELEASETIMEOUT = 20
     PKGMODULESNAMES = ['marathon-lb-sec']
-
+    BUILDTOOL = 'make'
     INSTALLTIMEOUT = 20
 
     INSTALLSERVICES = [
