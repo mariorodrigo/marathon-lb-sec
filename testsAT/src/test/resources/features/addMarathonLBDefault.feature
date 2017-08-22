@@ -4,8 +4,8 @@ Feature: Adding marathon-lb Default
   Scenario: Add Default marathon-lb
     Given I authenticate to DCOS cluster '${DCOS_IP}' using email '${DCOS_USER}' with user '${REMOTE_USER}' and password '${REMOTE_PASSWORD}'
     And I securely send requests to '${DCOS_IP}:443'
-    When I open a ssh connection to '${DCOS_IP}' with user '${REMOTE_USER}' and password '${REMOTE_PASSWORD}'
-    And I run 'cat /tmp/vault_token | sed "s/\"//g"' in the ssh connection and save the value in environment variable 'token'
+    Given I open a ssh connection to '${BOOTSTRAP_IP}' with user '${REMOTE_USER}' and password '${REMOTE_PASSWORD}'
+    And I run 'jq .root_token /stratio_volume/vault_response | sed -e 's/^"//' -e 's/"$//'' in the ssh connection and save the value in environment variable 'token'
     When I send a 'POST' request to '/marathon/v2/apps' based on 'schemas/marathon-lb-Default.json' as 'json' with:
     | $.env.VAULT_HOST | UPDATE | ${VAULT_HOST} |
     | $.env.VAULT_PORT | UPDATE | ${VAULT_PORT} |
