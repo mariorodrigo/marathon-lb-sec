@@ -2,7 +2,7 @@
 Feature: Adding marathon-lb XD
 
   Scenario: Add XD-Viewer marathon-lb
-    Given I authenticate to DCOS cluster '${DCOS_IP}' with email '${DCOS_USER}', user '${REMOTE_USER}' and password '${REMOTE_PASSWORD}' using pem file '${PEM_FILE}'
+    Given I authenticate to DCOS cluster '${DCOS_IP}' using email '${DCOS_USER}' with user '${REMOTE_USER}' and password '${REMOTE_PASSWORD}'
     And I securely send requests to '${DCOS_IP}:443'
     When I open a ssh connection to '${DCOS_IP}' with user '${REMOTE_USER}' and password '${REMOTE_PASSWORD}'
     And I run 'cat /tmp/vault_token | sed "s/\"//g"' in the ssh connection and save the value in environment variable 'token'
