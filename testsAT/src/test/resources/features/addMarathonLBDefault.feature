@@ -1,7 +1,7 @@
 @rest
-Feature: Adding marathon-lb Default
+Feature: [QATM-100]Adding marathon-lb Default
 
-  Scenario: Add Default marathon-lb
+  Scenario: [QATM-100]Add Default marathon-lb
     Given I authenticate to DCOS cluster '${DCOS_IP}' using email '${DCOS_USER}' with user '${REMOTE_USER}' and password '${REMOTE_PASSWORD}'
     And I securely send requests to '${DCOS_IP}:443'
     Given I open a ssh connection to '${BOOTSTRAP_IP}' with user '${REMOTE_USER}' and password '${REMOTE_PASSWORD}'
@@ -20,12 +20,3 @@ Feature: Adding marathon-lb Default
     Then in less than '300' seconds, checking each '10' seconds, the command output 'dcos marathon task show !{marathonTaskId} | grep TASK_RUNNING | wc -l' contains '1'
     Then in less than '300' seconds, checking each '10' seconds, the command output 'dcos marathon task show !{marathonTaskId} | grep healthCheckResults | wc -l' contains '1'
     Then in less than '300' seconds, checking each '10' seconds, the command output 'dcos marathon task show !{marathonTaskId} | grep  '"alive": true' | wc -l' contains '1'
-
-
-   # When in less than '200' seconds, checking each '20' seconds, the command output 'dcos task | grep marathon-lb-sec | grep R | wc -l' contains '1'
-   # And I wait '200' seconds
-   # And I send a 'GET' request to '/mesos/frameworks'
-   # Then the service response status must be '200'.
-   # And I save element '$' in environment variable 'coordinator'
-   # And 'coordinator' matches the following cases:
-   #   | $.frameworks[?(@.name == "marathon")].tasks[?(@.name == "marathon-lb-sec")].statuses[*].state           | contains   | TASK_RUNNING          |
