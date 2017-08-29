@@ -41,7 +41,7 @@
   "container": {
     "docker": {
       "image": "qa.stratio.com/stratio/marathon-lb-sec:1.5.1",
-      "forcePullImage": true,
+      "forcePullImage": false,
       "privileged": true,
       "network": "HOST"
     }

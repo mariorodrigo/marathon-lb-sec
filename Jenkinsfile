@@ -40,6 +40,6 @@ hose {
     }
 
     INSTALL = { config ->
-        doAT(conf: config, groups: ['marathonlbdefault','marathonlbxd'])
+        doAT(conf: config, groups: ['marathonlbdefault'])
     }
 }
