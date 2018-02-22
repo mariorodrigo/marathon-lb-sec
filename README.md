@@ -297,8 +297,20 @@ The default value when not specified is `redispatch,http-server-close,dontlognul
   < HTTP/1.1 200 OK
   ```
  * Some of the features of marathon-lb assume that it is the only instance of itself running in a PID namespace. i.e. marathon-lb assumes that it is running in a container. Certain features like the `/_mlb_signal` endpoints and the `/_haproxy_getpids` endpoint (and by extension, zero-downtime deployments) may behave unexpectedly if more than one instance of marathon-lb is running in the same PID namespace or if there are other HAProxy processes in the same PID namespace.
+ * Sometimes it is desirable to get detailed container and HAProxy logging for easier debugging as well as viewing connection logging to frontends and backends. This can be achieved by setting the `HAPROXY_SYSLOGD` environment variable or `container-syslogd` value in `options.json` like so:
+ 
+ ```json
+   {
+     "marathon-lb": {
+       "container-syslogd": true
+     }
+   }
+ ```
+* There's other options to use rsyslog instead of syslogd. This can be achieved by setting the `HAPROXY_RSYSLOG` environment variable.
 
 ## Zero-downtime Deployments
+
+* Please note that `zdd.py` is not to be used in a production environment and is purely developed for demonstration purposes.
 
 Marathon-lb is able to perform canary style blue/green deployment with zero downtime. To execute such deployments, you must follow certain patterns when using Marathon.
 
@@ -310,7 +322,7 @@ The deployment method is described [in this Marathon document](https://mesospher
   - `HAPROXY_DEPLOYMENT_ALT_PORT`: An alternate service port is required because Marathon requires service ports to be unique across all apps
 - Only use 1 service port: multiple ports are not yet implemented
 - Use the provided `zdd.py` script to orchestrate the deploy: the script will make API calls to Marathon, and use the HAProxy stats endpoint to gracefully terminate instances
-- The marathon-lb container must be run in privileged mode (to execute `iptables` commands) due to the issues outlined in the excellent blog post by the [Yelp engineering team found here](http://engineeringblog.yelp.com/2015/04/true-zero-downtime-haproxy-reloads.html)
+- The marathon-lb container must be run in privileged mode (to execute `iptables` commands) due to the issues outlined in the excellent blog post by the [Yelp engineering team found here](http://engineeringblog.yelp.com/2015/04/true-zero-downtime-haproxy-reloads.html). To avoid collisions with calico when modifying iptables, marathon-lb will insert its iptables rules in second position if a calico rule is present in iptables.
 - If you have long-lived TCP connections using the same HAProxy instances, it may cause the deploy to take longer than necessary. The script will wait up to 5 minutes (by default) for connections to drain from HAProxy between steps, but any long-lived TCP connections will cause old instances of HAProxy to stick around.
 
 An example minimal configuration for a [test instance of nginx is included here](tests/1-nginx.json). You might execute a deployment from a CI tool like Jenkins with:
@@ -369,12 +381,9 @@ assignment is not guaranteed if you change the current set of deployed apps. In
 other words, when you deploy a new app, the port assignments may change.
 
 
-## Zombies reaping
+## Zombie reaping
 
-When running within isolated containers, you may have to care about reaping orphan child processes.
-Haproxy typicaly produce orphan processes because of it's two steps reload machanism.
-Marathon-lb is using [tini](https://github.com/krallin/tini) for this purpose.
-When running in a container whitout pid namespace isolation, setting the `TINI_SUBREAPER` environnement variable is recommended.
+When running with isolated containers, you may need to take care of reaping orphaned child processes. HAProxy typically produces orphan processes because of its two-step reload mechanism. Marathon-LB uses [tini](https://github.com/krallin/tini) for this purpose. When running in a container without PID namespace isolation, setting the `TINI_SUBREAPER` environment variable is recommended.
 
 
 ## Contributing

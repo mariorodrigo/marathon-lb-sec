@@ -1,3 +1,4 @@
+import common
 import json
 import logging
 import os
@@ -15,13 +16,15 @@ vault_token = os.getenv('VAULT_TOKEN', '')
 vault_accessor = os.getenv('ACCESSOR_TOKEN','')
 MAX_PERCENTAGE_EXPIRATION = 0.9
 
-logging.basicConfig(level=logging.DEBUG)
+logger = None
+def init_log():
+    global logger
+    logger = common.marathon_lb_logger.getChild('kms_utils.py')
 
 def login():
   global vault_token
   global vault_accessor
-  output = exec_with_kms_utils('', 'login', 'echo "{\\\"vaulttoken\\\": \\\"$VAULT_TOKEN\\\",\\\"accessor\\\": \\\"$ACCESSOR_TOKEN\\\"}"')
-  resp,_ = output.communicate()
+  resp,_ = exec_with_kms_utils('', 'login', 'echo "{\\\"vaulttoken\\\": \\\"$VAULT_TOKEN\\\",\\\"accessor\\\": \\\"$ACCESSOR_TOKEN\\\"}"')
   jsonVal = json.loads(resp.decode("utf-8"))
   vault_accessor = (jsonVal['accessor'])
   vault_token = (jsonVal['vaulttoken'])
@@ -29,21 +32,19 @@ def login():
 def get_cert(cluster, instance, fqdn, o_format, store_path):
   variables = ''.join(['export VAULT_TOKEN=', vault_token, ';'])
   command = ' '.join(['getCert', cluster, instance, fqdn, o_format, store_path]) 
-  output = exec_with_kms_utils(variables, command , '')
-  resp,_ = output.communicate()
-  logging.debug('get_cert for ' + instance + ' returned ' + str(output.returncode) + ' and ' + resp.decode("utf-8"))
+  resp,returncode = exec_with_kms_utils(variables, command , '')
+  logger.debug('get_cert for ' + instance + ' returned ' + str(returncode) + ' and ' + resp.decode("utf-8"))
   
-  return output.returncode == 0
+  return returncode == 0
 
 def get_token_info():
   variables = ''.join(['export VAULT_TOKEN=', vault_token, ';', 'export ACCESSOR_TOKEN=', vault_accessor, ';'])
   command = 'token_info'
-  output = exec_with_kms_utils(variables, command, '')
-  resp,_ = output.communicate()
+  resp,_ = exec_with_kms_utils(variables, command, '')
   respArr = resp.decode("utf-8").split(',')
   jsonValue = json.loads(','.join(respArr[1:]))
-  logging.debug('status ' + respArr[0])
-  logging.debug(jsonValue)
+  logger.debug('status ' + respArr[0])
+  logger.debug(jsonValue)
   
   return jsonValue
 
@@ -64,16 +65,16 @@ def check_token_needs_renewal(force):
   else:
     percentage = (currentTime - creationTime) / ttl
   
-  logging.debug('Checked token expiration: percentage -> ' + str(percentage))
+  logger.debug('Checked token expiration: percentage -> ' + str(percentage))
   
   if (percentage >= MAX_PERCENTAGE_EXPIRATION and percentage < 1):
-    logging.info('Token about to expire... need renewal')
+    logger.info('Token about to expire... need renewal')
     renewal_token(ttl)
   elif (percentage >= 1):
-    logging.info('Token expired... need renewal')
+    logger.info('Token expired... need renewal')
     renewal_token(ttl)
   elif force:
-    logging.info('Forced renewal')
+    logger.info('Forced renewal')
     renewal_token(ttl)
   else:
     renewal = False
@@ -83,16 +84,21 @@ def check_token_needs_renewal(force):
 def renewal_token(ttl):
   variables = ''.join(['export VAULT_TOKEN=', vault_token, ';'])
   command = 'token_renewal'
-  output = exec_with_kms_utils(variables, command, '')
-  resp,_ = output.communicate()
+  resp,_ = exec_with_kms_utils(variables, command, '')
   respArr = resp.decode("utf-8").split(',')
   jsonValue = json.loads(','.join(respArr[1:]))
-  logging.debug('status ' + respArr[0])
-  logging.debug(jsonValue) 
+  logger.debug('status ' + respArr[0])
+  logger.debug(jsonValue) 
 
 def exec_with_kms_utils(variables, command, extra_command):
-  logging.debug('>>> exec_with_kms_utils: [COMM:'+command+', VARS:'+variables+', EXTRA_COMM:'+extra_command+']')
-  output = subprocess.Popen(['bash', '-c', head_vault_hosts + variables + source_kms_utils + command + ';' + extra_command], shell=False, stdout=subprocess.PIPE)
+  logger.debug('>>> exec_with_kms_utils: [COMM:'+command+', VARS:'+variables+', EXTRA_COMM:'+extra_command+']')
+  proc = subprocess.Popen(['bash', '-c', head_vault_hosts + variables + source_kms_utils + command + ';' + extra_command], shell=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
   
-  return output
+  try:
+    resp,_ = proc.communicate(timeout=120)
+  except TimeoutExpired:
+    proc.kill()
+    resp,_ = proc.communicate()
+
+  return resp, proc.returncode
 

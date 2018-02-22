@@ -1,16 +1,18 @@
-FROM debian:stretch
+FROM debian:buster
 
 ARG VERSION
 
 # artifacts versions
-ARG KMS_UTILS_VERSION=0.3.0
+ARG SEC_UTILS_VERSION=0.4.0
 
 # nexus repository artifacts
-ADD http://sodio.stratio.com/repository/paas/kms_utils/${KMS_UTILS_VERSION}/kms_utils-${KMS_UTILS_VERSION}.sh /usr/sbin/kms_utils.sh
+ADD http://sodio.stratio.com/repository/paas/kms_utils/${SEC_UTILS_VERSION}/kms_utils-${SEC_UTILS_VERSION}.sh /usr/sbin/kms_utils.sh
+ADD http://sodio.stratio.com/repository/paas/log_utils/${SEC_UTILS_VERSION}/b-log-${SEC_UTILS_VERSION}.sh /usr/sbin/b-log.sh
 
 # runtime dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
+        inetutils-syslogd \
         iptables \
         libcurl3 \
         liblua5.3-0 \
@@ -19,9 +21,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         procps \
         python3 \
         runit \
+        gnupg-agent \
         socat \
-	curl \
+        curl \
         jq \
+    && apt-get install -y rsyslog \
     && rm -rf /var/lib/apt/lists/*
 
 ENV TINI_VERSION=v0.13.2 \
@@ -32,7 +36,7 @@ RUN set -x \
     && wget -O tini "https://github.com/krallin/tini/releases/download/$TINI_VERSION/tini-amd64" \
     && wget -O tini.asc "https://github.com/krallin/tini/releases/download/$TINI_VERSION/tini-amd64.asc" \
     && export GNUPGHOME="$(mktemp -d)" \
-    && gpg --keyserver ha.pool.sks-keyservers.net --recv-keys "$TINI_GPG_KEY" \
+    && gpg --keyserver hkps://hkps.pool.sks-keyservers.net --recv-keys "$TINI_GPG_KEY" \
     && gpg --batch --verify tini.asc tini \
     && rm -rf "$GNUPGHOME" tini.asc \
     && mv tini /usr/bin/tini \
@@ -52,6 +56,7 @@ COPY MARATHON-LB-VERSION /marathon-lb/
 
 RUN set -x \
     && buildDeps=' \
+        build-essential \
         gcc \
         libcurl4-openssl-dev \
         libffi-dev \

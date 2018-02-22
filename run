@@ -1,6 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
+source /usr/sbin/b-log.sh
+B_LOG --stdout true
+DOCKER_LOG_LEVEL=${DOCKER_LOG_LEVEL:-INFO}
+eval LOG_LEVEL_${DOCKER_LOG_LEVEL}
+
+
 # # # # # # # # # #
 # Vault config: 
 # STRING_VAULT_HOST
@@ -15,6 +21,8 @@ set -euo pipefail
 # # # # # # # # #
 VAULT_ENABLED=0
 
+MARATHON_LB_CERT_NAME="000_marathon-lb.pem"
+
 # KMS_UTILS & Dynamic authentication
 if [ -n "${STRING_VAULT_HOST-}" ] && [ -n "${VAULT_PORT-}" ]; then
   OLD_IFS=${IFS}
@@ -24,22 +32,45 @@ if [ -n "${STRING_VAULT_HOST-}" ] && [ -n "${VAULT_PORT-}" ]; then
   if [ -n "${VAULT_ROLE_ID-}" ] && [ -n "${VAULT_SECRET_ID-}" ];  then
     source /usr/sbin/kms_utils.sh
     VAULT_ENABLED=1
-    echo "VAULT - Dynamic authentication provided"
-    echo "Dynamic login with vault..."
+    INFO "VAULT - Dynamic authentication provided"
+    INFO "Dynamic login with vault..."
     login
-    echo "Login success"
+    INFO "Login success"
 
   elif [ -n "${VAULT_TOKEN-}" ];  then
     source /usr/sbin/kms_utils.sh
     VAULT_ENABLED=1
-    echo "VAULT - Token authentication provided"
+    INFO "VAULT - Token authentication provided"
   else
-    echo "VAULT - ERROR: Vault host configuration provided, but no token nor dynamic authentication configuration provided"
+    INFO "VAULT - ERROR: Vault host configuration provided, but no token nor dynamic authentication configuration provided"
     exit 1 
   fi
 fi
 
 # 
+LOG_PREFIX="$(pwd) $0"
+log() {
+    logline=$(echo "[$LOG_PREFIX] $1" | sed "s/%/%%/g")
+    INFO "$logline" >&1
+}
+log_error() {
+    logline="[$LOG_PREFIX] $1"
+    ERROR "$logline"
+}
+
+if [ -n "${HAPROXY_SYSLOGD-}" ]; then
+    SYSLOGD_SERVICE="/marathon-lb/service/syslogd"
+    mkdir -p $SYSLOGD_SERVICE
+    cp /marathon-lb/syslogd/run "$SYSLOGD_SERVICE/"
+fi
+
+if [ -n "${HAPROXY_RSYSLOG-}" ]; then
+    RSYSLOG_SERVICE="/marathon-lb/service/rsyslog"
+    mkdir -p $RSYSLOG_SERVICE
+    cp /marathon-lb/rsyslog/run "$RSYSLOG_SERVICE/"
+fi
+
+# Custom syslog socket for marathon-lb.py logging
 SYSLOG_SOCKET=${SYSLOG_SOCKET:-/dev/null}
 
 LB_SERVICE="/marathon-lb/service/lb"
@@ -49,9 +80,9 @@ HAPROXY_SERVICE="/marathon-lb/service/haproxy"
 mkdir -p $HAPROXY_SERVICE/env
 
 if [ -n "${PORTS-}" ]; then
-  echo $PORTS > $HAPROXY_SERVICE/env/PORTS
+  log "$PORTS > $HAPROXY_SERVICE/env/PORTS"
 else
-  echo 'Define $PORTS with a comma-separated list of ports to which HAProxy binds' >&2
+  log_error "Define $PORTS with a comma-separated list of ports to which HAProxy binds"
   exit 1
 fi
 
@@ -75,7 +106,7 @@ else
 fi
 
 if [ ${VAULT_ENABLED} -eq 1 ]; then
-  echo "Downloading certificates from vault..."
+  INFO "Downloading certificates from vault..."
   SSL_CERTS="/marathon-lb/vault_certs"
   mkdir -p "$SSL_CERTS"
   # if provided Vault credentials, use it.
@@ -83,9 +114,17 @@ if [ ${VAULT_ENABLED} -eq 1 ]; then
   chmod 644 "$SSL_CERTS/marathon-lb.pem"
   cat "$SSL_CERTS/marathon-lb.key" >> "$SSL_CERTS/marathon-lb.pem"
   rm -f "$SSL_CERTS/marathon-lb.key"
+  # Change the name to be the first alphabetical order certificate (SNI)
+  mv "$SSL_CERTS/marathon-lb.pem" "$SSL_CERTS/$MARATHON_LB_CERT_NAME"
+  # Copy the certificate to make it available in the old default path
+  cp "$SSL_CERTS/$MARATHON_LB_CERT_NAME" /etc/ssl/cert.pem
 	
   SSL_CERTS="$SSL_CERTS/"
-  echo "Downloaded"
+  INFO "Downloaded"
+  
+  INFO "Downloading ca-bundle from vault..."
+  getCAbundle /etc/ssl PEM
+  INFO "Downloaded"
 
 elif [ -n "${HAPROXY_SSL_CERT-}" ]; then
   # if provided via environment variable, use it.
@@ -116,7 +155,7 @@ if [ -n "${MESOS_SANDBOX-}" ] && [ -d "$MESOS_SANDBOX/templates" ]; then
 fi
 
 if [ -n "${HAPROXY_SYSCTL_PARAMS-}" ]; then
-  echo "setting sysctl params to: ${HAPROXY_SYSCTL_PARAMS}"
+  log "setting sysctl params to: ${HAPROXY_SYSCTL_PARAMS}"
   if [ -n "${HAPROXY_SYSCTL_NONSTRICT-}" ]; then
     # ignore errors
     sysctl -w $HAPROXY_SYSCTL_PARAMS || true
@@ -135,17 +174,17 @@ case "$MODE" in
     ARGS="--sse"
     ;;
   *)
-    echo "Unknown mode $MODE. Synopsis: $0 poll|sse [marathon_lb.py args]" >&2
+    log_error "Unknown mode $MODE. Synopsis: $0 poll|sse [marathon_lb.py args]"
     exit 1
     ;;
 esac
 
 if [ ${VAULT_ENABLED} -eq 1 ]; then 
-  echo "Downloading marathon credentials from Vault..."
+  INFO "Downloading marathon credentials from Vault..."
   getPass dcs marathon rest
   CREDENTIALS="$MARATHON_REST_USER:$MARATHON_REST_PASS"
   ARGS="$ARGS --auth-credentials $CREDENTIALS"
-  echo "Downloaded"
+  INFO "Downloaded"
 fi
 
 for arg in "$@"; do
@@ -158,6 +197,7 @@ cat > $LB_SERVICE/run << EOF
 exec 2>&1
 cd /marathon-lb
 exec /marathon-lb/marathon_lb.py \
+    --marathon-lb-cert-name "$MARATHON_LB_CERT_NAME" \
     --syslog-socket $SYSLOG_SOCKET \
     --haproxy-config /marathon-lb/haproxy.cfg \
     --ssl-certs "${SSL_CERTS}" \
@@ -165,6 +205,10 @@ exec /marathon-lb/marathon_lb.py \
     $ARGS
 EOF
 chmod 755 $LB_SERVICE/run
+
+log "Created $LB_SERVICE/run with contents:"
+LB_RUN=$(cat $LB_SERVICE/run)
+log "$LB_RUN"
 
 if [ "${MODE}" == "poll" ]; then
 
